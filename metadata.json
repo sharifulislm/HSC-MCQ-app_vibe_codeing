@@ -1,0 +1,6 @@
+{
+  "name": "HSC Edge",
+  "description": "Smart HSC (Intermediate) exam preparation app for Bangladesh students with subject-wise MCQs, admin MCQ management, AI voice tutor, TTS audio explanations, and live syllabus search.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

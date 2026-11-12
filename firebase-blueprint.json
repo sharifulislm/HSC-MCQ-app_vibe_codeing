@@ -1,0 +1,152 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered HSC student or admin profile.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the owner." },
+        "displayName": { "type": "string", "description": "Full display name." },
+        "email": { "type": "string", "description": "Lowercase Google account email." },
+        "board": { "type": "string", "description": "Bangladesh Education Board name." },
+        "college": { "type": "string", "description": "Optional college name." },
+        "preferredStream": {
+          "type": "string",
+          "enum": ["All", "Compulsory", "Science", "Business", "Humanities"]
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "student"]
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "preferredStream", "createdAt", "updatedAt"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "Per-user theme mode and study preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "themeMode": { "type": "string", "enum": ["dark", "light", "system"] },
+        "ttsVoice": { "type": "string", "enum": ["Kore", "Puck", "Charon", "Fenrir", "Aoede"] },
+        "autoReadTts": { "type": "boolean" },
+        "compactCards": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "themeMode", "ttsVoice", "autoReadTts", "compactCards", "updatedAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "HSC subject managed by the single admin and readable by all logged-in users.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "stream": { "type": "string", "enum": ["Compulsory", "Science", "Business", "Humanities"] },
+        "description": { "type": "string" },
+        "accentKey": { "type": "string", "enum": ["emerald", "indigo", "coral", "amber", "teal"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "name", "code", "stream", "accentKey", "createdAt", "updatedAt"]
+    },
+    "Chapter": {
+      "title": "Chapter",
+      "description": "Chapter or category under a subject, managed by admin.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "title": { "type": "string" },
+        "paperLabel": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "subjectId", "title", "paperLabel", "createdAt", "updatedAt"]
+    },
+    "Mcq": {
+      "title": "Mcq",
+      "description": "Multiple choice question managed by admin and readable by all logged-in users.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "chapterId": { "type": "string" },
+        "question": { "type": "string" },
+        "options": { "type": "array" },
+        "correctIndex": { "type": "integer" },
+        "explanation": { "type": "string" },
+        "difficulty": { "type": "string", "enum": ["Easy", "Medium", "Hard"] },
+        "boardTag": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "subjectId", "chapterId", "question", "options", "correctIndex", "difficulty", "boardTag", "createdAt", "updatedAt"]
+    },
+    "ExamResult": {
+      "title": "ExamResult",
+      "description": "Timed exam attempt saved under the student's userId.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "chapterTitle": { "type": "string" },
+        "score": { "type": "integer" },
+        "totalQuestions": { "type": "integer" },
+        "wrongCount": { "type": "integer" },
+        "durationSeconds": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "subjectId", "subjectName", "chapterTitle", "score", "totalQuestions", "wrongCount", "durationSeconds", "createdAt"]
+    },
+    "Bookmark": {
+      "title": "Bookmark",
+      "description": "Student bookmark referencing an MCQ.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "mcqId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "chapterId": { "type": "string" },
+        "question": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "mcqId", "subjectId", "chapterId", "question", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Student and admin user profiles."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "User appearance and study preferences."
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "HSC subjects (ICT, Bangla, English, Physics, Chemistry, Biology, Higher Math, etc.)."
+    },
+    "/chapters/{chapterId}": {
+      "schema": { "$ref": "#/entities/Chapter" },
+      "description": "Chapters or categories under each HSC subject."
+    },
+    "/mcqs/{mcqId}": {
+      "schema": { "$ref": "#/entities/Mcq" },
+      "description": "HSC MCQ bank managed by the single admin."
+    },
+    "/examResults/{resultId}": {
+      "schema": { "$ref": "#/entities/ExamResult" },
+      "description": "Per-student timed exam history."
+    },
+    "/bookmarks/{bookmarkId}": {
+      "schema": { "$ref": "#/entities/Bookmark" },
+      "description": "Per-student bookmarked MCQs."
+    }
+  }
+}

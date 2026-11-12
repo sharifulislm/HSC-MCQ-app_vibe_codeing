@@ -1,0 +1,281 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function hasVerifiedEmail() {
+      return isSignedIn() &&
+             'email_verified' in request.auth.token &&
+             request.auth.token.email_verified == true &&
+             'email' in request.auth.token &&
+             request.auth.token.email is string;
+    }
+
+    // Single Admin Email Enforcement (keep synchronized with ADMIN_EMAIL in Kotlin)
+    function isAdmin() {
+      return hasVerifiedEmail() &&
+             request.auth.token.email.lower() == 'shariful.islam.coder@gmail.com';
+    }
+
+    function isValidStream(val) {
+      return val is string && val in ['All', 'Compulsory', 'Science', 'Business', 'Humanities'];
+    }
+
+    function isValidSubjectStream(val) {
+      return val is string && val in ['Compulsory', 'Science', 'Business', 'Humanities'];
+    }
+
+    function isValidAccentKey(val) {
+      return val is string && val in ['emerald', 'indigo', 'coral', 'amber', 'teal'];
+    }
+
+    function isValidDifficulty(val) {
+      return val is string && val in ['Easy', 'Medium', 'Hard'];
+    }
+
+    function isValidThemeMode(val) {
+      return val is string && val in ['dark', 'light', 'system'];
+    }
+
+    function isValidTtsVoice(val) {
+      return val is string && val in ['Kore', 'Puck', 'Charon', 'Fenrir', 'Aoede'];
+    }
+
+    function isValidMcqOptions(opts) {
+      return opts is list && opts.size() == 4 &&
+             opts[0] is string && opts[0].size() >= 1 && opts[0].size() <= 240 &&
+             opts[1] is string && opts[1].size() >= 1 && opts[1].size() <= 240 &&
+             opts[2] is string && opts[2].size() >= 1 && opts[2].size() <= 240 &&
+             opts[3] is string && opts[3].size() >= 1 && opts[3].size() <= 240;
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 128)) &&
+             (!('board' in data) || (data.board is string && data.board.size() <= 40)) &&
+             (!('college' in data) || (data.college is string && data.college.size() <= 120)) &&
+             isValidStream(data.preferredStream) &&
+             (!('role' in data) || (data.role is string && data.role in ['admin', 'student'])) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidUserSettings(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             isValidThemeMode(data.themeMode) &&
+             isValidTtsVoice(data.ttsVoice) &&
+             data.autoReadTts is bool &&
+             data.compactCards is bool &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSubject(data) {
+      return data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+             data.code is string && data.code.size() >= 1 && data.code.size() <= 20 &&
+             isValidSubjectStream(data.stream) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 300)) &&
+             isValidAccentKey(data.accentKey) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidChapter(data) {
+      return data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+             isValidId(data.subjectId) &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+             data.paperLabel is string && data.paperLabel.size() >= 1 && data.paperLabel.size() <= 40 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 300)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMcq(data) {
+      return data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+             isValidId(data.subjectId) &&
+             isValidId(data.chapterId) &&
+             data.question is string && data.question.size() >= 5 && data.question.size() <= 600 &&
+             isValidMcqOptions(data.options) &&
+             data.correctIndex is int && data.correctIndex >= 0 && data.correctIndex <= 3 &&
+             (!('explanation' in data) || (data.explanation is string && data.explanation.size() <= 1000)) &&
+             isValidDifficulty(data.difficulty) &&
+             data.boardTag is string && data.boardTag.size() >= 1 && data.boardTag.size() <= 60 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidExamResult(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             isValidId(data.subjectId) &&
+             data.subjectName is string && data.subjectName.size() >= 1 && data.subjectName.size() <= 80 &&
+             data.chapterTitle is string && data.chapterTitle.size() >= 1 && data.chapterTitle.size() <= 120 &&
+             data.score is int && data.score >= 0 && data.score <= 500 &&
+             data.totalQuestions is int && data.totalQuestions >= 1 && data.totalQuestions <= 500 &&
+             data.wrongCount is int && data.wrongCount >= 0 && data.wrongCount <= 500 &&
+             data.durationSeconds is int && data.durationSeconds >= 0 && data.durationSeconds <= 18000 &&
+             data.score <= data.totalQuestions &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidBookmark(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             isValidId(data.mcqId) &&
+             isValidId(data.subjectId) &&
+             isValidId(data.chapterId) &&
+             data.question is string && data.question.size() >= 1 && data.question.size() <= 600 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // --- Collection Rules ---
+
+    match /users/{userId} {
+      allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId);
+      allow list: if isAdmin();
+
+      allow create: if isOwner(userId) && isValidId(userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'preferredStream', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'board', 'college', 'preferredStream', 'role', 'createdAt', 'updatedAt']) &&
+                       (!('role' in incoming()) || incoming().role == 'student' || isAdmin()) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) && isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (!('role' in incoming()) || incoming().role == 'student' || isAdmin()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'board', 'college', 'preferredStream', 'role', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) && isValidId(settingId) &&
+                         incoming().keys().hasAll(['userId', 'themeMode', 'ttsVoice', 'autoReadTts', 'compactCards', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'themeMode', 'ttsVoice', 'autoReadTts', 'compactCards', 'updatedAt']) &&
+                         isValidUserSettings(incoming(), userId);
+
+        allow update: if isOwner(userId) && isValidId(settingId) &&
+                         isValidUserSettings(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['themeMode', 'ttsVoice', 'autoReadTts', 'compactCards', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(settingId);
+      }
+    }
+
+    // Any logged-in user can read subjects; ONLY ADMIN_EMAIL can write
+    match /subjects/{subjectId} {
+      allow get: if isSignedIn() && isValidId(subjectId);
+      allow list: if isSignedIn();
+
+      allow create: if isAdmin() && isValidId(subjectId) &&
+                       incoming().authorId == request.auth.uid &&
+                       incoming().keys().hasAll(['authorId', 'name', 'code', 'stream', 'accentKey', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['authorId', 'name', 'code', 'stream', 'description', 'accentKey', 'createdAt', 'updatedAt']) &&
+                       isValidSubject(incoming());
+
+      allow update: if isAdmin() && isValidId(subjectId) &&
+                       isValidSubject(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'stream', 'description', 'accentKey', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(subjectId);
+    }
+
+    // Any logged-in user can read chapters; ONLY ADMIN_EMAIL can write
+    match /chapters/{chapterId} {
+      allow get: if isSignedIn() && isValidId(chapterId);
+      allow list: if isSignedIn();
+
+      allow create: if isAdmin() && isValidId(chapterId) &&
+                       incoming().authorId == request.auth.uid &&
+                       incoming().keys().hasAll(['authorId', 'subjectId', 'title', 'paperLabel', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['authorId', 'subjectId', 'title', 'paperLabel', 'description', 'createdAt', 'updatedAt']) &&
+                       isValidChapter(incoming());
+
+      allow update: if isAdmin() && isValidId(chapterId) &&
+                       isValidChapter(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['subjectId', 'title', 'paperLabel', 'description', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(chapterId);
+    }
+
+    // Any logged-in user can read mcqs; ONLY ADMIN_EMAIL can write
+    match /mcqs/{mcqId} {
+      allow get: if isSignedIn() && isValidId(mcqId);
+      allow list: if isSignedIn();
+
+      allow create: if isAdmin() && isValidId(mcqId) &&
+                       incoming().authorId == request.auth.uid &&
+                       incoming().keys().hasAll(['authorId', 'subjectId', 'chapterId', 'question', 'options', 'correctIndex', 'difficulty', 'boardTag', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['authorId', 'subjectId', 'chapterId', 'question', 'options', 'correctIndex', 'explanation', 'difficulty', 'boardTag', 'createdAt', 'updatedAt']) &&
+                       isValidMcq(incoming());
+
+      allow update: if isAdmin() && isValidId(mcqId) &&
+                       isValidMcq(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['subjectId', 'chapterId', 'question', 'options', 'correctIndex', 'explanation', 'difficulty', 'boardTag', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(mcqId);
+    }
+
+    // Each student reads and writes ONLY their own examResults
+    match /examResults/{resultId} {
+      allow get: if isSignedIn() && isValidId(resultId) && resource != null && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() && isValidId(resultId) &&
+                       incoming().keys().hasAll(['userId', 'subjectId', 'subjectName', 'chapterTitle', 'score', 'totalQuestions', 'wrongCount', 'durationSeconds', 'createdAt']) &&
+                       incoming().keys().hasOnly(['userId', 'subjectId', 'subjectName', 'chapterTitle', 'score', 'totalQuestions', 'wrongCount', 'durationSeconds', 'createdAt']) &&
+                       isValidExamResult(incoming());
+
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(resultId) && resource != null && existing().userId == request.auth.uid;
+    }
+
+    // Each student reads and writes ONLY their own bookmarks
+    match /bookmarks/{bookmarkId} {
+      allow get: if isSignedIn() && isValidId(bookmarkId) && resource != null && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() && isValidId(bookmarkId) &&
+                       incoming().keys().hasAll(['userId', 'mcqId', 'subjectId', 'chapterId', 'question', 'createdAt']) &&
+                       incoming().keys().hasOnly(['userId', 'mcqId', 'subjectId', 'chapterId', 'question', 'createdAt']) &&
+                       isValidBookmark(incoming());
+
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(bookmarkId) && resource != null && existing().userId == request.auth.uid;
+    }
+  }
+}
